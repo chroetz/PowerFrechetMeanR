@@ -9,11 +9,3 @@ pfm_gradient_cpp <- function(x, X, a, eps = 1e-10) {
     .Call(`_PowerFrechetMeanR_pfm_gradient_cpp`, x, X, a, eps)
 }
 
-pfm_obj_grad_cpp <- function(x, X, a, eps = 1e-10) {
-    .Call(`_PowerFrechetMeanR_pfm_obj_grad_cpp`, x, X, a, eps)
-}
-
-weiszfeld_init_cpp <- function(X, max_iter = 20L, eps = 1e-10) {
-    .Call(`_PowerFrechetMeanR_weiszfeld_init_cpp`, X, max_iter, eps)
-}
-

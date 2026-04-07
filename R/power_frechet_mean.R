@@ -1,95 +1,85 @@
 #' Compute the Power Frechet Mean
 #'
-#' Given \eqn{n} data points \eqn{x_1, \dots, x_n \in \mathbb{R}^d} and a
-#' power parameter \eqn{a \ge 1}, the **power Frechet mean** is the minimiser
-#' of
+#' Given \eqn{n} data points \eqn{x_1, \dots, x_n \in \mathbb{R}^d} and one
+#' or more power parameters \eqn{a > 0}, the **power Frechet mean** for each
+#' value of \eqn{a} is the minimiser of
 #' \deqn{f(x) = \sum_{i=1}^{n} \|x_i - x\|^a, \quad x \in \mathbb{R}^d.}
 #'
-#' The function is strictly convex for \eqn{a > 1} (unique minimiser) and
-#' convex for \eqn{a = 1} (geometric median, unique if the data are not
-#' collinear).  Notable special cases:
+#' The objective is convex for \eqn{a \ge 1} (strictly convex with a unique
+#' minimiser for \eqn{a > 1}); for \eqn{0 < a < 1} it is non-convex and the
+#' optimiser may converge to a local minimum.  Notable special cases:
 #'
-#' * **\eqn{a = 2}** -- arithmetic mean (`colMeans(X)`).
+#' * **\eqn{a = 2}** -- arithmetic mean (`colMeans(X)`), computed exactly.
 #' * **\eqn{a = 1}** -- geometric / spatial median (L1 mean).
 #' * **\eqn{a \to \infty}** -- minimax / Chebyshev centre.
 #'
-#' Optimisation uses an analytical gradient and either the L-BFGS-B
-#' quasi-Newton method from [stats::optim()] (`backend = "optim"`, default)
-#' or the LBFGS algorithm from [nloptr::nloptr()] (`backend = "nloptr"`).
+#' ## Warm-start strategy
+#'
+#' Starting points for the optimiser are chosen automatically.  The arithmetic
+#' mean (`colMeans(X)`) is the exact solution for \eqn{a = 2} and serves as
+#' the anchor.  The supplied \eqn{a} values are sorted and the sweep proceeds
+#' outward in both directions from 2:
+#'
+#' * **\eqn{a \ge 2}**: solved left-to-right in increasing order; each solve
+#'   is warm-started from the previous result.
+#' * **\eqn{a < 2}**: solved right-to-left in decreasing order (i.e. from
+#'   values closest to 2 downward); each solve is warm-started from the
+#'   previous result.
+#'
+#' This continuity-based strategy typically reduces total iterations
+#' substantially compared to always starting from `colMeans(X)`.
+#'
+#' ## Optimisation
+#'
+#' Uses an analytical gradient (C++/RcppArmadillo) and the L-BFGS-B
+#' quasi-Newton method from [stats::optim()].
 #'
 #' @param X       Numeric matrix of data points, one row per observation
 #'   (\eqn{n \times d}).  A numeric vector is treated as an \eqn{n \times 1}
 #'   matrix.
-#' @param a       Power parameter \eqn{a \ge 1} (default `2`).
-#' @param init    Initial guess for the optimiser, a numeric vector of length
-#'   \eqn{d}.  Defaults to `colMeans(X)` (arithmetic mean), which is the
-#'   exact solution for `a = 2` and a good warm start otherwise.
-#'   Overridden by `weiszfeld_init` when that is positive.
-#' @param backend Character string selecting the optimisation backend:
-#'   `"optim"` (default, uses [stats::optim()] with method `"L-BFGS-B"`) or
-#'   `"nloptr"` (uses [nloptr::nloptr()] with algorithm `NLOPT_LD_LBFGS`).
-#'   If `"nloptr"` is requested but the package is not installed, the function
-#'   falls back to `"optim"` with a message.
-#' @param tol     Convergence tolerance passed to the optimiser.  For
-#'   `"optim"` (L-BFGS-B) this sets `control$factr = tol / .Machine$double.eps`
-#'   and `control$pgtol = tol`; for `"nloptr"` it sets `xtol_rel`.
-#'   Default `1e-8`.
-#' @param maxit   Maximum number of iterations (default `1000`).
-#' @param eps     Smoothing constant used in the gradient when \eqn{a < 2}
-#'   to prevent division by zero at data points.  Default `1e-10`.
-#' @param use_cpp Logical.  If `TRUE` (default), use the C++/RcppArmadillo
-#'   implementations of the objective and gradient for speed.  Set to
-#'   `FALSE` to force the pure-R fallback (useful for benchmarking).
-#' @param weiszfeld_init  Integer number of Weiszfeld (iteratively
-#'   re-weighted least-squares) iterations to run before passing the result
-#'   as the initial point for L-BFGS-B.  Useful for \eqn{a} near 1 where
-#'   the Weiszfeld algorithm converges quickly and produces a much better
-#'   starting point than the arithmetic mean.  Default `0L` (disabled).
-#'   Ignored when `init` is supplied explicitly.
-#' @param ...     Additional named arguments forwarded to the `control` list
-#'   of [stats::optim()] (for `backend = "optim"`) or to the `opts` list of
-#'   [nloptr::nloptr()] (for `backend = "nloptr"`).
+#' @param a       Numeric vector of power parameters, each \eqn{> 0}.
+#'   Duplicate values are silently removed; the returned tibble rows are
+#'   sorted by `a`.  The objective is convex for \eqn{a \ge 1}; values in
+#'   \eqn{(0, 1)} are accepted but the problem is non-convex.
+#' @param tol     Convergence tolerance.  Sets `control$factr` and
+#'   `control$pgtol` for L-BFGS-B.  Default `1e-10`.
+#' @param maxit   Maximum number of L-BFGS-B iterations (default `1000`).
+#' @param eps     Smoothing constant for the gradient when \eqn{a < 2},
+#'   preventing division by zero at data points.  Default `1e-12`.
+#' @param ...     Additional entries for the `control` list of [stats::optim()].
 #'
-#' @return A list with class `"power_frechet_mean"` containing:
+#' @return A [tibble::tibble()] with one row per unique value of `a` (sorted),
+#'   containing columns:
 #'   \describe{
-#'     \item{`mean`}{Numeric vector of length \eqn{d}: the power Frechet mean.}
-#'     \item{`value`}{Numeric scalar: the minimised objective value \eqn{f(x^*)}.}
-#'     \item{`convergence`}{Integer convergence code from the optimiser.
-#'       `0` indicates successful convergence for both backends.}
-#'     \item{`a`}{The power parameter used.}
+#'     \item{`a`}{Power parameter.}
+#'     \item{`mean`}{Matrix column (\eqn{k \times d}); row \eqn{i} is the
+#'       power Frechet mean for `a[i]`.  Access as `res$mean[i, ]`.}
+#'     \item{`value`}{Minimised objective \eqn{f(x^*)}.}
+#'     \item{`convergence`}{Integer code from [stats::optim()]; `0` = success.}
 #'     \item{`n`}{Number of data points.}
-#'     \item{`d`}{Dimension of the data.}
-#'     \item{`backend`}{The backend actually used.}
+#'     \item{`d`}{Dimension.}
 #'   }
 #'
 #' @examples
 #' set.seed(42)
 #' X <- matrix(rnorm(30), nrow = 10, ncol = 3)
 #'
-#' # a = 2: should equal arithmetic mean
-#' res2 <- power_frechet_mean(X, a = 2)
-#' stopifnot(max(abs(res2$mean - colMeans(X))) < 1e-6)
+#' # Single a: a = 2 returns the arithmetic mean exactly
+#' res <- power_frechet_mean(X, a = 2)
+#' stopifnot(max(abs(res$mean[1, ] - colMeans(X))) < 1e-6)
 #'
-#' # a = 1: geometric median (with Weiszfeld warm-start)
-#' res1 <- power_frechet_mean(X, a = 1, weiszfeld_init = 20L)
-#' res1$mean
-#'
-#' # a = 3
-#' res3 <- power_frechet_mean(X, a = 3)
-#' res3$mean
+#' # Vector of a values
+#' res_multi <- power_frechet_mean(X, a = c(1, 1.5, 2, 3))
+#' res_multi
 #'
 #' @seealso [pfm_objective_value()] to evaluate the objective at an arbitrary
 #'   point.
 #' @export
 power_frechet_mean <- function(X,
-                               a              = 2,
-                               init           = NULL,
-                               backend        = c("optim", "nloptr"),
-                               tol            = 1e-8,
-                               maxit          = 1000L,
-                               eps            = 1e-10,
-                               use_cpp        = TRUE,
-                               weiszfeld_init = 0L,
+                               a,
+                               tol   = 1e-10,
+                               maxit = 1000L,
+                               eps   = 1e-12,
                                ...) {
   # ---- input validation -------------------------------------------------------
   if (is.vector(X) && is.numeric(X)) {
@@ -98,155 +88,103 @@ power_frechet_mean <- function(X,
     X <- as.matrix(X)
   }
   if (!is.numeric(X))  stop("`X` must be a numeric matrix.")
-  storage.mode(X) <- "double"   # ensure double, not integer
+  storage.mode(X) <- "double"
   if (anyNA(X))        stop("`X` contains missing values.")
-  if (!is.numeric(a) || length(a) != 1L || a <= 0)
-    stop("`a` must be a single numeric value > 0.")
-  if (!is.numeric(eps) || eps < 0)
+
+  if (!is.numeric(a) || length(a) < 1L)
+    stop("`a` must be a non-empty numeric vector.")
+  if (any(a <= 0))
+    stop("All values of `a` must be > 0.")
+
+  if (!is.numeric(eps) || length(eps) != 1L || eps < 0)
     stop("`eps` must be a non-negative numeric scalar.")
-  weiszfeld_init <- as.integer(weiszfeld_init)
 
   n <- nrow(X)
   d <- ncol(X)
 
-  backend <- match.arg(backend)
+  # ---- sort and deduplicate a -------------------------------------------------
+  a_vals <- sort(unique(as.numeric(a)))
 
-  # Fall back gracefully if nloptr is not installed
-  if (backend == "nloptr" &&
-      !requireNamespace("nloptr", quietly = TRUE)) {
-    message("Package 'nloptr' is not installed; falling back to stats::optim.")
-    backend <- "optim"
-  }
+  # ---- anchor: a = 2 is the arithmetic mean (exact) ---------------------------
+  mu2  <- colMeans(X)
+  val2 <- pfm_objective_cpp(mu2, X, 2.0)
 
-  # ---- shortcut for a = 2 (arithmetic mean is exact) -------------------------
-  # NOTE: this must come BEFORE the Weiszfeld init block so we do not waste
-  # O(n*d*weiszfeld_init) work when the answer is just colMeans(X).
-  if (isTRUE(all.equal(a, 2))) {
-    mu <- colMeans(X)
-    if (use_cpp) {
-      val <- pfm_objective_cpp(mu, X, a)
-    } else {
-      val <- pfm_objective(mu, X, a)
+  # ---- L-BFGS-B control list --------------------------------------------------
+  ctrl <- c(
+    list(maxit = as.integer(maxit),
+         factr = tol / .Machine$double.eps,
+         pgtol = tol),
+    list(...)
+  )
+
+  # ---- helper: solve for a single a value -------------------------------------
+  solve_one <- function(a_i, init) {
+    if (isTRUE(all.equal(a_i, 2))) {
+      return(list(par = mu2, value = val2, convergence = 0L))
     }
-    return(structure(
-      list(mean = mu, value = val, convergence = 0L,
-           a = a, n = n, d = d, backend = "exact"),
-      class = "power_frechet_mean"
-    ))
-  }
-
-  # ---- initial point (after a=2 shortcut to avoid wasted Weiszfeld work) -----
-  if (is.null(init)) {
-    if (weiszfeld_init > 0L && use_cpp) {
-      init <- as.numeric(weiszfeld_init_cpp(X, max_iter = weiszfeld_init,
-                                            eps = eps))
-    } else if (weiszfeld_init > 0L) {
-      init <- weiszfeld_init_r(X, max_iter = weiszfeld_init, eps = eps)
-    } else {
-      init <- colMeans(X)
-    }
-  } else {
-    init <- as.numeric(init)
-    if (length(init) != d)
-      stop("`init` must have length equal to the number of columns of `X`.")
-  }
-
-  # ---- choose objective / gradient implementation ----------------------------
-  if (use_cpp) {
-    fn <- function(x) pfm_objective_cpp(x, X, a)
-    gr <- function(x) pfm_gradient_cpp(x, X, a, eps)
-  } else {
-    fn <- function(x) pfm_objective(x, X, a)
-    gr <- function(x) pfm_gradient(x, X, a, eps)
-  }
-
-  # ---- optimise ---------------------------------------------------------------
-  extra <- list(...)
-
-  if (backend == "optim") {
-    ctrl <- c(
-      list(maxit = as.integer(maxit),
-           factr = tol / .Machine$double.eps,
-           pgtol = tol),
-      extra
-    )
     fit <- stats::optim(
       par     = init,
-      fn      = fn,
-      gr      = gr,
+      fn      = function(x) pfm_objective_cpp(x, X, a_i),
+      gr      = function(x) pfm_gradient_cpp(x, X, a_i, eps),
       method  = "L-BFGS-B",
       control = ctrl
     )
-    result <- list(
-      mean        = fit$par,
-      value       = fit$value,
-      convergence = fit$convergence,
-      a           = a,
-      n           = n,
-      d           = d,
-      backend     = "optim"
-    )
-
-  } else {
-    opts <- c(
-      list(algorithm = "NLOPT_LD_LBFGS",
-           xtol_rel  = tol,
-           maxeval   = maxit),
-      extra
-    )
-    fit <- nloptr::nloptr(
-      x0          = init,
-      eval_f      = fn,
-      eval_grad_f = gr,
-      opts        = opts
-    )
-    conv <- if (fit$status > 0L) 0L else fit$status
-    result <- list(
-      mean        = fit$solution,
-      value       = fit$objective,
-      convergence = conv,
-      a           = a,
-      n           = n,
-      d           = d,
-      backend     = "nloptr"
-    )
+    fit
   }
 
-  structure(result, class = "power_frechet_mean")
-}
+  # ---- sweep right: a >= 2 (sorted ascending) --------------------------------
+  a_right <- a_vals[a_vals >= 2]
+  results_right <- vector("list", length(a_right))
+  init_r <- mu2
+  for (i in seq_along(a_right)) {
+    fit <- solve_one(a_right[i], init_r)
+    results_right[[i]] <- list(a = a_right[i], mean = fit$par,
+                               value = fit$value,
+                               convergence = as.integer(fit$convergence))
+    init_r <- fit$par
+  }
 
+  # ---- sweep left: a < 2 (sorted descending, i.e. closest to 2 first) --------
+  a_left <- rev(a_vals[a_vals < 2])
+  results_left <- vector("list", length(a_left))
+  init_l <- mu2
+  for (i in seq_along(a_left)) {
+    fit <- solve_one(a_left[i], init_l)
+    results_left[[i]] <- list(a = a_left[i], mean = fit$par,
+                              value = fit$value,
+                              convergence = as.integer(fit$convergence))
+    init_l <- fit$par
+  }
 
-#' Print method for power_frechet_mean objects
-#'
-#' @param x   An object of class `"power_frechet_mean"`.
-#' @param ... Ignored.
-#' @return Invisibly returns `x`.
-#' @export
-print.power_frechet_mean <- function(x, ...) {
-  cat(sprintf(
-    "Power Fr\u00e9chet mean  (a = %g,  n = %d,  d = %d,  backend = %s)\n",
-    x$a, x$n, x$d, x$backend
-  ))
-  cat("Mean:\n")
-  print(x$mean)
-  cat(sprintf("Objective value: %g\n", x$value))
-  if (x$convergence != 0L)
-    warning(sprintf("Optimiser did not converge (code %d).", x$convergence),
-            call. = FALSE)
-  invisible(x)
+  # ---- combine results, sorted by a ------------------------------------------
+  all_results <- c(results_left, results_right)
+  # sort by a value
+  ord <- order(vapply(all_results, `[[`, numeric(1), "a"))
+  all_results <- all_results[ord]
+
+  # Build k x d matrix: each row is the mean vector for one a value.
+  # do.call(rbind, ...) handles d=1 correctly (gives k x 1 matrix).
+  mean_mat <- do.call(rbind, lapply(all_results, `[[`, "mean"))
+
+  tibble::tibble(
+    a           = vapply(all_results, `[[`, numeric(1), "a"),
+    mean        = mean_mat,
+    value       = vapply(all_results, `[[`, numeric(1), "value"),
+    convergence = vapply(all_results, `[[`, integer(1), "convergence"),
+    n           = n,
+    d           = d
+  )
 }
 
 
 #' Evaluate the Power Frechet Objective at a Given Point
 #'
-#' Convenience function that evaluates
-#' \eqn{f(x) = \sum_{i=1}^{n} \|x_i - x\|^a}
-#' at an arbitrary point `x`.
+#' Evaluates \eqn{f(x) = \sum_{i=1}^{n} \|x_i - x\|^a} at an arbitrary
+#' point `x`.
 #'
 #' @param x  Numeric vector of length \eqn{d}.
 #' @param X  Numeric \eqn{n \times d} matrix of data points.
-#' @param a  Power parameter \eqn{a \ge 1} (default `2`).
-#' @param use_cpp Logical.  Use C++ implementation if `TRUE` (default).
+#' @param a  Power parameter \eqn{a > 0} (default `2`).
 #'
 #' @return Scalar numeric objective value.
 #'
@@ -255,14 +193,9 @@ print.power_frechet_mean <- function(x, ...) {
 #' pfm_objective_value(c(2, 3), X, a = 2)
 #'
 #' @export
-pfm_objective_value <- function(x, X, a = 2, use_cpp = TRUE) {
+pfm_objective_value <- function(x, X, a = 2) {
   if (is.vector(X) && is.numeric(X)) X <- matrix(X, ncol = 1L)
   X <- as.matrix(X)
   storage.mode(X) <- "double"
-  x <- as.numeric(x)
-  if (use_cpp) {
-    pfm_objective_cpp(x, X, a)
-  } else {
-    pfm_objective(x, X, a)
-  }
+  pfm_objective_cpp(as.numeric(x), X, a)
 }

@@ -6,7 +6,7 @@
 \alias{PowerFrechetMeanR-package}
 \title{PowerFrechetMeanR: Power Frechet Mean in Euclidean Spaces}
 \description{
-Computes the power Frechet mean (also known as the power mean or Lp-barycenter) in Euclidean space. Given n data points x_1, ..., x_n in R^d and a power parameter a >= 1, the power Frechet mean minimises the objective sum_{i=1}^n ||x_i - x||^a over x in R^d via numerical convex optimisation. Special cases include the arithmetic mean (a = 2) and the geometric median (a = 1). The objective and gradient are implemented in C++ via RcppArmadillo for high performance, with an optional Weiszfeld warm-start for the geometric-median case. Optimisation uses stats::optim (L-BFGS-B) by default, with optional support for the 'nloptr' package as a faster backend.
+Computes the power Frechet mean in Euclidean space. Given n data points in R^d and a power parameter a > 0, the power Frechet mean minimises the sum of a-th powers of Euclidean distances to a query point. The objective and gradient are implemented in C++ via RcppArmadillo and optimised with L-BFGS-B. Special cases include the arithmetic mean (a = 2) and the geometric median (a = 1).
 }
 \author{
 \strong{Maintainer}: Chris \email{chris@uber.space}

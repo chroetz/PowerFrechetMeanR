@@ -4,110 +4,91 @@
 \alias{power_frechet_mean}
 \title{Compute the Power Frechet Mean}
 \usage{
-power_frechet_mean(
-  X,
-  a = 2,
-  init = NULL,
-  backend = c("optim", "nloptr"),
-  tol = 1e-08,
-  maxit = 1000L,
-  eps = 1e-10,
-  use_cpp = TRUE,
-  weiszfeld_init = 0L,
-  ...
-)
+power_frechet_mean(X, a, tol = 1e-10, maxit = 1000L, eps = 1e-12, ...)
 }
 \arguments{
 \item{X}{Numeric matrix of data points, one row per observation
 (\eqn{n \times d}).  A numeric vector is treated as an \eqn{n \times 1}
 matrix.}
 
-\item{a}{Power parameter \eqn{a \ge 1} (default \code{2}).}
+\item{a}{Numeric vector of power parameters, each \eqn{> 0}.
+Duplicate values are silently removed; the returned tibble rows are
+sorted by \code{a}.  The objective is convex for \eqn{a \ge 1}; values in
+\eqn{(0, 1)} are accepted but the problem is non-convex.}
 
-\item{init}{Initial guess for the optimiser, a numeric vector of length
-\eqn{d}.  Defaults to \code{colMeans(X)} (arithmetic mean), which is the
-exact solution for \code{a = 2} and a good warm start otherwise.
-Overridden by \code{weiszfeld_init} when that is positive.}
+\item{tol}{Convergence tolerance.  Sets \code{control$factr} and
+\code{control$pgtol} for L-BFGS-B.  Default \code{1e-10}.}
 
-\item{backend}{Character string selecting the optimisation backend:
-\code{"optim"} (default, uses \code{\link[stats:optim]{stats::optim()}} with method \code{"L-BFGS-B"}) or
-\code{"nloptr"} (uses \code{\link[nloptr:nloptr]{nloptr::nloptr()}} with algorithm \code{NLOPT_LD_LBFGS}).
-If \code{"nloptr"} is requested but the package is not installed, the function
-falls back to \code{"optim"} with a message.}
+\item{maxit}{Maximum number of L-BFGS-B iterations (default \code{1000}).}
 
-\item{tol}{Convergence tolerance passed to the optimiser.  For
-\code{"optim"} (L-BFGS-B) this sets \code{control$factr = tol / .Machine$double.eps}
-and \code{control$pgtol = tol}; for \code{"nloptr"} it sets \code{xtol_rel}.
-Default \code{1e-8}.}
+\item{eps}{Smoothing constant for the gradient when \eqn{a < 2},
+preventing division by zero at data points.  Default \code{1e-12}.}
 
-\item{maxit}{Maximum number of iterations (default \code{1000}).}
-
-\item{eps}{Smoothing constant used in the gradient when \eqn{a < 2}
-to prevent division by zero at data points.  Default \code{1e-10}.}
-
-\item{use_cpp}{Logical.  If \code{TRUE} (default), use the C++/RcppArmadillo
-implementations of the objective and gradient for speed.  Set to
-\code{FALSE} to force the pure-R fallback (useful for benchmarking).}
-
-\item{weiszfeld_init}{Integer number of Weiszfeld (iteratively
-re-weighted least-squares) iterations to run before passing the result
-as the initial point for L-BFGS-B.  Useful for \eqn{a} near 1 where
-the Weiszfeld algorithm converges quickly and produces a much better
-starting point than the arithmetic mean.  Default \code{0L} (disabled).
-Ignored when \code{init} is supplied explicitly.}
-
-\item{...}{Additional named arguments forwarded to the \code{control} list
-of \code{\link[stats:optim]{stats::optim()}} (for \code{backend = "optim"}) or to the \code{opts} list of
-\code{\link[nloptr:nloptr]{nloptr::nloptr()}} (for \code{backend = "nloptr"}).}
+\item{...}{Additional entries for the \code{control} list of \code{\link[stats:optim]{stats::optim()}}.}
 }
 \value{
-A list with class \code{"power_frechet_mean"} containing:
+A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per unique value of \code{a} (sorted),
+containing columns:
 \describe{
-\item{\code{mean}}{Numeric vector of length \eqn{d}: the power Frechet mean.}
-\item{\code{value}}{Numeric scalar: the minimised objective value \eqn{f(x^*)}.}
-\item{\code{convergence}}{Integer convergence code from the optimiser.
-\code{0} indicates successful convergence for both backends.}
-\item{\code{a}}{The power parameter used.}
+\item{\code{a}}{Power parameter.}
+\item{\code{mean}}{Matrix column (\eqn{k \times d}); row \eqn{i} is the
+power Frechet mean for \code{a[i]}.  Access as \code{res$mean[i, ]}.}
+\item{\code{value}}{Minimised objective \eqn{f(x^*)}.}
+\item{\code{convergence}}{Integer code from \code{\link[stats:optim]{stats::optim()}}; \code{0} = success.}
 \item{\code{n}}{Number of data points.}
-\item{\code{d}}{Dimension of the data.}
-\item{\code{backend}}{The backend actually used.}
+\item{\code{d}}{Dimension.}
 }
 }
 \description{
-Given \eqn{n} data points \eqn{x_1, \dots, x_n \in \mathbb{R}^d} and a
-power parameter \eqn{a \ge 1}, the \strong{power Frechet mean} is the minimiser
-of
+Given \eqn{n} data points \eqn{x_1, \dots, x_n \in \mathbb{R}^d} and one
+or more power parameters \eqn{a > 0}, the \strong{power Frechet mean} for each
+value of \eqn{a} is the minimiser of
 \deqn{f(x) = \sum_{i=1}^{n} \|x_i - x\|^a, \quad x \in \mathbb{R}^d.}
 }
 \details{
-The function is strictly convex for \eqn{a > 1} (unique minimiser) and
-convex for \eqn{a = 1} (geometric median, unique if the data are not
-collinear).  Notable special cases:
+The objective is convex for \eqn{a \ge 1} (strictly convex with a unique
+minimiser for \eqn{a > 1}); for \eqn{0 < a < 1} it is non-convex and the
+optimiser may converge to a local minimum.  Notable special cases:
 \itemize{
-\item \strong{\eqn{a = 2}} -- arithmetic mean (\code{colMeans(X)}).
+\item \strong{\eqn{a = 2}} -- arithmetic mean (\code{colMeans(X)}), computed exactly.
 \item \strong{\eqn{a = 1}} -- geometric / spatial median (L1 mean).
 \item \strong{\eqn{a \to \infty}} -- minimax / Chebyshev centre.
 }
+\subsection{Warm-start strategy}{
 
-Optimisation uses an analytical gradient and either the L-BFGS-B
-quasi-Newton method from \code{\link[stats:optim]{stats::optim()}} (\code{backend = "optim"}, default)
-or the LBFGS algorithm from \code{\link[nloptr:nloptr]{nloptr::nloptr()}} (\code{backend = "nloptr"}).
+Starting points for the optimiser are chosen automatically.  The arithmetic
+mean (\code{colMeans(X)}) is the exact solution for \eqn{a = 2} and serves as
+the anchor.  The supplied \eqn{a} values are sorted and the sweep proceeds
+outward in both directions from 2:
+\itemize{
+\item \strong{\eqn{a \ge 2}}: solved left-to-right in increasing order; each solve
+is warm-started from the previous result.
+\item \strong{\eqn{a < 2}}: solved right-to-left in decreasing order (i.e. from
+values closest to 2 downward); each solve is warm-started from the
+previous result.
+}
+
+This continuity-based strategy typically reduces total iterations
+substantially compared to always starting from \code{colMeans(X)}.
+}
+
+\subsection{Optimisation}{
+
+Uses an analytical gradient (C++/RcppArmadillo) and the L-BFGS-B
+quasi-Newton method from \code{\link[stats:optim]{stats::optim()}}.
+}
 }
 \examples{
 set.seed(42)
 X <- matrix(rnorm(30), nrow = 10, ncol = 3)
 
-# a = 2: should equal arithmetic mean
-res2 <- power_frechet_mean(X, a = 2)
-stopifnot(max(abs(res2$mean - colMeans(X))) < 1e-6)
+# Single a: a = 2 returns the arithmetic mean exactly
+res <- power_frechet_mean(X, a = 2)
+stopifnot(max(abs(res$mean[1, ] - colMeans(X))) < 1e-6)
 
-# a = 1: geometric median (with Weiszfeld warm-start)
-res1 <- power_frechet_mean(X, a = 1, weiszfeld_init = 20L)
-res1$mean
-
-# a = 3
-res3 <- power_frechet_mean(X, a = 3)
-res3$mean
+# Vector of a values
+res_multi <- power_frechet_mean(X, a = c(1, 1.5, 2, 3))
+res_multi
 
 }
 \seealso{

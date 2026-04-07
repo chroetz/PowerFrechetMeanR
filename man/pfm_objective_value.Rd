@@ -4,24 +4,21 @@
 \alias{pfm_objective_value}
 \title{Evaluate the Power Frechet Objective at a Given Point}
 \usage{
-pfm_objective_value(x, X, a = 2, use_cpp = TRUE)
+pfm_objective_value(x, X, a = 2)
 }
 \arguments{
 \item{x}{Numeric vector of length \eqn{d}.}
 
 \item{X}{Numeric \eqn{n \times d} matrix of data points.}
 
-\item{a}{Power parameter \eqn{a \ge 1} (default \code{2}).}
-
-\item{use_cpp}{Logical.  Use C++ implementation if \code{TRUE} (default).}
+\item{a}{Power parameter \eqn{a > 0} (default \code{2}).}
 }
 \value{
 Scalar numeric objective value.
 }
 \description{
-Convenience function that evaluates
-\eqn{f(x) = \sum_{i=1}^{n} \|x_i - x\|^a}
-at an arbitrary point \code{x}.
+Evaluates \eqn{f(x) = \sum_{i=1}^{n} \|x_i - x\|^a} at an arbitrary
+point \code{x}.
 }
 \examples{
 X <- matrix(1:6, nrow = 3)

@@ -4,243 +4,238 @@ library(PowerFrechetMeanR)
 
 
 # ==============================================================================
-# 1. a = 2 returns the arithmetic mean exactly
+# 1. Return type and structure
+# ==============================================================================
+
+test_that("return value is a tibble with correct columns", {
+  X <- matrix(rnorm(20), nrow = 10, ncol = 2)
+  res <- power_frechet_mean(X, a = 2)
+  expect_s3_class(res, "tbl_df")
+  expect_named(res, c("a", "mean", "value", "convergence", "n", "d"))
+})
+
+test_that("n and d fields are correct", {
+  X <- matrix(1:20, nrow = 5, ncol = 4)
+  storage.mode(X) <- "double"
+  res <- power_frechet_mean(X, a = c(1.5, 2))
+  expect_true(all(res$n == 5L))
+  expect_true(all(res$d == 4L))
+})
+
+test_that("mean column is a k x d matrix", {
+  set.seed(10)
+  X <- matrix(rnorm(30), nrow = 10, ncol = 3)
+  res <- power_frechet_mean(X, a = c(1, 2, 3))
+  expect_true(is.matrix(res$mean))
+  expect_equal(nrow(res$mean), 3L)  # k = 3 a-values
+  expect_equal(ncol(res$mean), 3L)  # d = 3 dimensions
+})
+
+test_that("mean column is k x 1 for univariate data", {
+  x <- rnorm(10L)
+  res <- power_frechet_mean(x, a = c(1, 2))
+  expect_true(is.matrix(res$mean))
+  expect_equal(nrow(res$mean), 2L)
+  expect_equal(ncol(res$mean), 1L)
+})
+
+
+# ==============================================================================
+# 2. a = 2 returns the arithmetic mean exactly
 # ==============================================================================
 
 test_that("a=2 returns arithmetic mean (1D)", {
   set.seed(1L)
   x <- rnorm(20L)
-  X <- matrix(x, ncol = 1L)
-  res <- power_frechet_mean(X, a = 2)
-  expect_equal(res$mean, mean(x), tolerance = 1e-6)
+  res <- power_frechet_mean(matrix(x, ncol = 1L), a = 2)
+  expect_equal(res$mean[1, 1], mean(x), tolerance = 1e-6)
   expect_equal(res$convergence, 0L)
 })
 
 test_that("a=2 returns arithmetic mean (multivariate)", {
   set.seed(2L)
-  X   <- matrix(rnorm(60L), nrow = 20L, ncol = 3L)
+  X <- matrix(rnorm(60L), nrow = 20L, ncol = 3L)
   res <- power_frechet_mean(X, a = 2)
-  expect_equal(res$mean, colMeans(X), tolerance = 1e-6)
+  expect_equal(res$mean[1, ], colMeans(X), tolerance = 1e-6)
 })
 
 test_that("a=2 works for a single data point", {
-  X   <- matrix(c(3, -1, 7), nrow = 1L)
+  X <- matrix(c(3, -1, 7), nrow = 1L)
   res <- power_frechet_mean(X, a = 2)
-  expect_equal(res$mean, c(3, -1, 7), tolerance = 1e-6)
+  expect_equal(res$mean[1, ], c(3, -1, 7), tolerance = 1e-6)
 })
 
 
 # ==============================================================================
-# 2. a = 1 (geometric median) -- basic sanity checks
+# 3. a = 1 (geometric median)
 # ==============================================================================
 
-test_that("a=1 converges and returns a single data point for n=1", {
-  X   <- matrix(c(5, -2), nrow = 1L)
+test_that("a=1 converges for n=1", {
+  X <- matrix(c(5, -2), nrow = 1L)
   res <- power_frechet_mean(X, a = 1)
-  expect_equal(res$mean, c(5, -2), tolerance = 1e-5)
-  expect_equal(res$convergence, 0L)
+  expect_equal(res$mean[1, ], c(5, -2), tolerance = 1e-5)
+  expect_equal(res$convergence[1], 0L)
 })
 
-test_that("a=1 objective <= a=1 objective at arithmetic mean (2D)", {
+test_that("a=1 objective <= objective at arithmetic mean (2D)", {
   set.seed(3L)
-  X    <- matrix(rnorm(40L), nrow = 20L, ncol = 2L)
-  res  <- power_frechet_mean(X, a = 1)
-  f_at_mean   <- pfm_objective_value(colMeans(X), X, a = 1)
-  f_at_median <- pfm_objective_value(res$mean,    X, a = 1)
-  expect_lte(f_at_median, f_at_mean + 1e-6)
+  X <- matrix(rnorm(40L), nrow = 20L, ncol = 2L)
+  res <- power_frechet_mean(X, a = 1)
+  expect_lte(pfm_objective_value(res$mean[1, ], X, a = 1),
+             pfm_objective_value(colMeans(X),   X, a = 1) + 1e-6)
 })
 
 test_that("a=1 1D optimised objective equals objective at exact median", {
+  # For d=1 the L1 objective is minimised by any value in the median interval;
+  # both the optimiser and median(x) achieve the same minimum value.
   set.seed(4L)
-  x   <- rnorm(30L)
-  X   <- matrix(x, ncol = 1L)
+  x <- rnorm(30L)
+  X <- matrix(x, ncol = 1L)
   res <- power_frechet_mean(X, a = 1)
-  f_opt <- pfm_objective_value(res$mean,   X, a = 1)
-  f_med <- pfm_objective_value(median(x),  X, a = 1)
-  expect_equal(f_opt, f_med, tolerance = 1e-5)
+  expect_equal(pfm_objective_value(res$mean[1, ], X, a = 1),
+               pfm_objective_value(median(x),     X, a = 1),
+               tolerance = 1e-5)
 })
 
 
 # ==============================================================================
-# 3. Convergence holds across different a values
+# 4. Vector of a values
 # ==============================================================================
 
-test_that("convergence code is 0 for a range of a values", {
+test_that("vector of a values returns one row each, sorted", {
+  set.seed(20)
+  X <- matrix(rnorm(40), nrow = 20, ncol = 2)
+  a_vec <- c(3, 1, 2, 1.5)
+  res <- power_frechet_mean(X, a = a_vec)
+  expect_equal(nrow(res), 4L)
+  expect_equal(res$a, sort(unique(a_vec)))
+})
+
+test_that("duplicate a values are silently deduplicated", {
+  set.seed(21)
+  X <- matrix(rnorm(20), nrow = 10, ncol = 2)
+  res <- power_frechet_mean(X, a = c(2, 2, 1, 1))
+  expect_equal(nrow(res), 2L)
+  expect_equal(res$a, c(1, 2))
+})
+
+test_that("fractional a in (0, 1) is accepted", {
+  set.seed(30)
+  X <- matrix(rnorm(20), nrow = 10, ncol = 2)
+  # a = 0.5 is non-convex but should not error
+  expect_no_error(power_frechet_mean(X, a = 0.5))
+})
+
+
+# ==============================================================================
+# 5. Convergence for a range of power values
+# ==============================================================================
+
+test_that("convergence code is 0 for a range of a values (single calls)", {
   set.seed(5L)
   X <- matrix(rnorm(30L), nrow = 10L, ncol = 3L)
   for (aa in c(1, 1.5, 2, 3, 4)) {
     res <- power_frechet_mean(X, a = aa)
-    expect_equal(res$convergence, 0L,
+    expect_equal(res$convergence[1], 0L,
                  label = sprintf("convergence for a=%g", aa))
   }
 })
 
+test_that("all convergence codes are 0 for vector a call", {
+  set.seed(22)
+  X <- matrix(rnorm(60), nrow = 20, ncol = 3)
+  res <- power_frechet_mean(X, a = c(1, 1.5, 2, 2.5, 3, 5))
+  expect_true(all(res$convergence == 0L))
+})
+
 
 # ==============================================================================
-# 4. Symmetry: mean of symmetric data is the centre of symmetry
+# 6. Symmetry: mean of symmetric data is the centre
 # ==============================================================================
 
-test_that("Power Frechet mean of symmetric data is the centre (2D)", {
+test_that("power Frechet mean of symmetric data is the centre", {
   X <- matrix(c(1, 0, -1, 0,
                 0, 1,  0, -1), nrow = 4L)
   for (aa in c(1, 1.5, 2, 3)) {
     res <- power_frechet_mean(X, a = aa, tol = 1e-10)
-    expect_equal(res$mean, c(0, 0), tolerance = 1e-5,
-                 label = sprintf("symmetry centre for a=%g", aa))
+    expect_equal(res$mean[1, ], c(0, 0), tolerance = 1e-5,
+                 label = sprintf("symmetry for a=%g", aa))
   }
 })
 
 
 # ==============================================================================
-# 5. pfm_objective_value() is consistent with the minimised value
+# 7. pfm_objective_value() consistent with minimised value
 # ==============================================================================
 
-test_that("pfm_objective_value matches internal objective at solution", {
+test_that("pfm_objective_value matches value at solution", {
   set.seed(6L)
   X   <- matrix(rnorm(20L), nrow = 5L, ncol = 4L)
   res <- power_frechet_mean(X, a = 1.5)
-  ext <- pfm_objective_value(res$mean, X, a = 1.5)
-  expect_equal(ext, res$value, tolerance = 1e-10)
+  expect_equal(pfm_objective_value(res$mean[1, ], X, a = 1.5),
+               res$value[1], tolerance = 1e-10)
+})
+
+test_that("objective values are consistent for all rows in multi-a result", {
+  set.seed(23)
+  X <- matrix(rnorm(30), nrow = 10, ncol = 3)
+  res <- power_frechet_mean(X, a = c(1, 2, 3))
+  for (i in seq_len(nrow(res))) {
+    computed <- pfm_objective_value(res$mean[i, ], X, a = res$a[i])
+    expect_lt(abs(computed - res$value[i]), 1e-8)
+  }
+})
+
+test_that("pfm_objective_value basic calculation", {
+  X <- matrix(1:6, nrow = 3)
+  storage.mode(X) <- "double"
+  val <- pfm_objective_value(c(2, 3), X, a = 2)
+  # sum of squared Euclidean distances from (2,3) to rows (1,4),(2,5),(3,6)
+  expected <- sum((1-2)^2 + (4-3)^2) +
+              sum((2-2)^2 + (5-3)^2) +
+              sum((3-2)^2 + (6-3)^2)
+  expect_lt(abs(val - expected), 1e-10)
 })
 
 
 # ==============================================================================
-# 6. Input coercion and error handling
+# 8. Input coercion and error handling
 # ==============================================================================
 
-test_that("numeric vector input is coerced to matrix", {
+test_that("numeric vector input is coerced to a column matrix", {
   x   <- rnorm(10L)
   res <- power_frechet_mean(x, a = 2)
-  expect_equal(res$mean, mean(x), tolerance = 1e-6)
-  expect_equal(res$d, 1L)
+  expect_equal(res$mean[1, 1], mean(x), tolerance = 1e-6)
+  expect_equal(res$d[1], 1L)
 })
 
-test_that("error when a < 1", {
+test_that("error when a = 0", {
+  expect_error(power_frechet_mean(matrix(rnorm(10L), nrow = 5L), a = 0),
+               regexp = "> 0")
+})
+
+test_that("error when a is negative", {
+  expect_error(power_frechet_mean(matrix(rnorm(10L), nrow = 5L), a = -1),
+               regexp = "> 0")
+})
+
+test_that("error when a vector contains a non-positive value", {
   X <- matrix(rnorm(10L), nrow = 5L)
-  expect_error(power_frechet_mean(X, a = 0.5), regexp = ">= 1")
+  expect_error(power_frechet_mean(X, a = c(1, 2, 0)), regexp = "> 0")
 })
 
 test_that("error for non-numeric X", {
-  X <- matrix(letters[1:6], nrow = 3L)
-  expect_error(power_frechet_mean(X), regexp = "numeric")
-})
-
-test_that("error when init has wrong length", {
-  X <- matrix(rnorm(20L), nrow = 10L, ncol = 2L)
-  expect_error(power_frechet_mean(X, init = c(1, 2, 3)), regexp = "length")
+  expect_error(power_frechet_mean(matrix(letters[1:6], nrow = 3L)),
+               regexp = "numeric")
 })
 
 test_that("error on missing values", {
-  X    <- matrix(rnorm(10L), nrow = 5L)
+  X <- matrix(rnorm(10L), nrow = 5L)
   X[2, 1] <- NA
-  expect_error(power_frechet_mean(X), regexp = "missing")
+  expect_error(power_frechet_mean(X, a = 2), regexp = "missing")
 })
 
-
-# ==============================================================================
-# 7. Return object structure
-# ==============================================================================
-
-test_that("return value has correct structure and class", {
-  X   <- matrix(rnorm(12L), nrow = 4L, ncol = 3L)
-  res <- power_frechet_mean(X, a = 2)
-  expect_s3_class(res, "power_frechet_mean")
-  expect_named(res, c("mean", "value", "convergence", "a", "n", "d", "backend"))
-  expect_equal(res$n, 4L)
-  expect_equal(res$d, 3L)
-  expect_equal(res$a, 2)
-})
-
-
-# ==============================================================================
-# 8. C++ vs R implementations agree
-# ==============================================================================
-
-test_that("C++ and R objective agree", {
-  set.seed(8L)
-  X  <- matrix(rnorm(50L), nrow = 10L, ncol = 5L)
-  x0 <- colMeans(X) + rnorm(5L) * 0.01
-  for (aa in c(1, 1.5, 2, 3)) {
-    r_val  <- pfm_objective_value(x0, X, aa, use_cpp = FALSE)
-    c_val  <- pfm_objective_value(x0, X, aa, use_cpp = TRUE)
-    expect_equal(r_val, c_val, tolerance = 1e-10,
-                 label = sprintf("obj R vs C++ for a=%g", aa))
-  }
-})
-
-test_that("C++ and R gradient agree", {
-  set.seed(9L)
-  X  <- matrix(rnorm(50L), nrow = 10L, ncol = 5L)
-  x0 <- colMeans(X) + rnorm(5L) * 0.01
-  pfm_gr_r <- PowerFrechetMeanR:::pfm_gradient
-  pfm_gr_c <- PowerFrechetMeanR:::pfm_gradient_cpp
-  for (aa in c(1, 1.5, 2, 3)) {
-    r_gr <- pfm_gr_r(x0, X, aa)
-    c_gr <- as.numeric(pfm_gr_c(x0, X, aa))
-    expect_equal(r_gr, c_gr, tolerance = 1e-10,
-                 label = sprintf("grad R vs C++ for a=%g", aa))
-  }
-})
-
-test_that("use_cpp=FALSE and use_cpp=TRUE give same optimised result", {
-  set.seed(10L)
-  X <- matrix(rnorm(30L), nrow = 10L, ncol = 3L)
-  for (aa in c(1, 1.5, 3)) {
-    res_r <- power_frechet_mean(X, a = aa, use_cpp = FALSE)
-    res_c <- power_frechet_mean(X, a = aa, use_cpp = TRUE)
-    expect_equal(res_r$value, res_c$value, tolerance = 1e-6,
-                 label = sprintf("R vs C++ optimised value for a=%g", aa))
-    expect_equal(res_r$mean, res_c$mean, tolerance = 1e-5,
-                 label = sprintf("R vs C++ optimised mean for a=%g", aa))
-  }
-})
-
-
-# ==============================================================================
-# 9. Weiszfeld warm-start
-# ==============================================================================
-
-test_that("Weiszfeld warm-start produces valid initial point for a=1", {
-  set.seed(11L)
-  X <- matrix(rnorm(60L), nrow = 20L, ncol = 3L)
-  # With warm-start, the objective should be at least as good as without
-  res_plain <- power_frechet_mean(X, a = 1, weiszfeld_init = 0L)
-  res_warm  <- power_frechet_mean(X, a = 1, weiszfeld_init = 50L)
-  expect_lte(res_warm$value, res_plain$value + 1e-6)
-  expect_equal(res_warm$convergence, 0L)
-})
-
-test_that("Weiszfeld R fallback works when use_cpp=FALSE", {
-  set.seed(12L)
-  X <- matrix(rnorm(40L), nrow = 10L, ncol = 4L)
-  res <- power_frechet_mean(X, a = 1, use_cpp = FALSE, weiszfeld_init = 20L)
-  expect_equal(res$convergence, 0L)
-  # Should be a valid solution (objective <= obj at arithmetic mean)
-  f_mean <- pfm_objective_value(colMeans(X), X, a = 1, use_cpp = FALSE)
-  expect_lte(res$value, f_mean + 1e-6)
-})
-
-
-# ==============================================================================
-# 10. nloptr backend (skipped if not installed)
-# ==============================================================================
-
-test_that("nloptr backend gives same result as optim backend", {
-  skip_if_not_installed("nloptr")
-  set.seed(7L)
-  X      <- matrix(rnorm(30L), nrow = 10L, ncol = 3L)
-  res_o  <- power_frechet_mean(X, a = 1.5, backend = "optim",   tol = 1e-9)
-  res_n  <- power_frechet_mean(X, a = 1.5, backend = "nloptr",  tol = 1e-9)
-  expect_equal(res_o$mean, res_n$mean, tolerance = 1e-5)
-  expect_equal(res_n$backend, "nloptr")
-})
-
-test_that("nloptr backend falls back to optim when nloptr not installed", {
-  local_mocked_bindings(
-    requireNamespace = function(pkg, ...) FALSE,
-    .package = "base"
-  )
-  X   <- matrix(rnorm(10L), nrow = 5L)
-  res <- power_frechet_mean(X, a = 2, backend = "nloptr")
-  expect_equal(res$backend, "exact")   # a=2 shortcut
+test_that("error for non-numeric a", {
+  X <- matrix(rnorm(10L), nrow = 5L)
+  expect_error(power_frechet_mean(X, a = "two"), regexp = "numeric")
 })

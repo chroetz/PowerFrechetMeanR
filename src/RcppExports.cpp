@@ -38,39 +38,10 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// pfm_obj_grad_cpp
-Rcpp::List pfm_obj_grad_cpp(const arma::vec& x, const arma::mat& X, double a, double eps);
-RcppExport SEXP _PowerFrechetMeanR_pfm_obj_grad_cpp(SEXP xSEXP, SEXP XSEXP, SEXP aSEXP, SEXP epsSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< double >::type a(aSEXP);
-    Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
-    rcpp_result_gen = Rcpp::wrap(pfm_obj_grad_cpp(x, X, a, eps));
-    return rcpp_result_gen;
-END_RCPP
-}
-// weiszfeld_init_cpp
-arma::vec weiszfeld_init_cpp(const arma::mat& X, int max_iter, double eps);
-RcppExport SEXP _PowerFrechetMeanR_weiszfeld_init_cpp(SEXP XSEXP, SEXP max_iterSEXP, SEXP epsSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< int >::type max_iter(max_iterSEXP);
-    Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
-    rcpp_result_gen = Rcpp::wrap(weiszfeld_init_cpp(X, max_iter, eps));
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_PowerFrechetMeanR_pfm_objective_cpp", (DL_FUNC) &_PowerFrechetMeanR_pfm_objective_cpp, 3},
     {"_PowerFrechetMeanR_pfm_gradient_cpp", (DL_FUNC) &_PowerFrechetMeanR_pfm_gradient_cpp, 4},
-    {"_PowerFrechetMeanR_pfm_obj_grad_cpp", (DL_FUNC) &_PowerFrechetMeanR_pfm_obj_grad_cpp, 4},
-    {"_PowerFrechetMeanR_weiszfeld_init_cpp", (DL_FUNC) &_PowerFrechetMeanR_weiszfeld_init_cpp, 3},
     {NULL, NULL, 0}
 };
 
