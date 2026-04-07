@@ -38,10 +38,66 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// huber_objective_cpp
+double huber_objective_cpp(const arma::vec& x, const arma::mat& X, double delta);
+RcppExport SEXP _PowerFrechetMeanR_huber_objective_cpp(SEXP xSEXP, SEXP XSEXP, SEXP deltaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    rcpp_result_gen = Rcpp::wrap(huber_objective_cpp(x, X, delta));
+    return rcpp_result_gen;
+END_RCPP
+}
+// huber_gradient_cpp
+arma::vec huber_gradient_cpp(const arma::vec& x, const arma::mat& X, double delta);
+RcppExport SEXP _PowerFrechetMeanR_huber_gradient_cpp(SEXP xSEXP, SEXP XSEXP, SEXP deltaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    rcpp_result_gen = Rcpp::wrap(huber_gradient_cpp(x, X, delta));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pseudo_huber_objective_cpp
+double pseudo_huber_objective_cpp(const arma::vec& x, const arma::mat& X, double delta);
+RcppExport SEXP _PowerFrechetMeanR_pseudo_huber_objective_cpp(SEXP xSEXP, SEXP XSEXP, SEXP deltaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    rcpp_result_gen = Rcpp::wrap(pseudo_huber_objective_cpp(x, X, delta));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pseudo_huber_gradient_cpp
+arma::vec pseudo_huber_gradient_cpp(const arma::vec& x, const arma::mat& X, double delta);
+RcppExport SEXP _PowerFrechetMeanR_pseudo_huber_gradient_cpp(SEXP xSEXP, SEXP XSEXP, SEXP deltaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    rcpp_result_gen = Rcpp::wrap(pseudo_huber_gradient_cpp(x, X, delta));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_PowerFrechetMeanR_pfm_objective_cpp", (DL_FUNC) &_PowerFrechetMeanR_pfm_objective_cpp, 3},
     {"_PowerFrechetMeanR_pfm_gradient_cpp", (DL_FUNC) &_PowerFrechetMeanR_pfm_gradient_cpp, 4},
+    {"_PowerFrechetMeanR_huber_objective_cpp", (DL_FUNC) &_PowerFrechetMeanR_huber_objective_cpp, 3},
+    {"_PowerFrechetMeanR_huber_gradient_cpp", (DL_FUNC) &_PowerFrechetMeanR_huber_gradient_cpp, 3},
+    {"_PowerFrechetMeanR_pseudo_huber_objective_cpp", (DL_FUNC) &_PowerFrechetMeanR_pseudo_huber_objective_cpp, 3},
+    {"_PowerFrechetMeanR_pseudo_huber_gradient_cpp", (DL_FUNC) &_PowerFrechetMeanR_pseudo_huber_gradient_cpp, 3},
     {NULL, NULL, 0}
 };
 

@@ -9,3 +9,19 @@ pfm_gradient_cpp <- function(x, X, a, eps = 1e-10) {
     .Call(`_PowerFrechetMeanR_pfm_gradient_cpp`, x, X, a, eps)
 }
 
+huber_objective_cpp <- function(x, X, delta) {
+    .Call(`_PowerFrechetMeanR_huber_objective_cpp`, x, X, delta)
+}
+
+huber_gradient_cpp <- function(x, X, delta) {
+    .Call(`_PowerFrechetMeanR_huber_gradient_cpp`, x, X, delta)
+}
+
+pseudo_huber_objective_cpp <- function(x, X, delta) {
+    .Call(`_PowerFrechetMeanR_pseudo_huber_objective_cpp`, x, X, delta)
+}
+
+pseudo_huber_gradient_cpp <- function(x, X, delta) {
+    .Call(`_PowerFrechetMeanR_pseudo_huber_gradient_cpp`, x, X, delta)
+}
+
