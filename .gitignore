@@ -1,1 +1,4 @@
 .Rproj.user
+*.dll
+*.o
+/inst/lab.R
